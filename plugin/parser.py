@@ -4,12 +4,16 @@ import re
 
 from contenthive.plugins.context import PluginContext
 from contenthive.plugins.contracts import (
+    CoverStream,
+    ImageStream,
     MediaType,
     ParserAuthorInfo,
     ParserMediaInfo,
     ParserPlatformInfo,
     ParserResult,
     ParserResultStatus,
+    VideoStream,
+    source_key_from_url,
 )
 
 from .api_client import InstagramAPIClient
@@ -107,13 +111,18 @@ class InstagramParser:
                 return None
             cover = self._best_image_candidate(media_item)
             duration_s = media_item.get("video_duration")
+            streams: list = [
+                VideoStream(urls=[best["url"]], width=best.get("width"), height=best.get("height")),
+            ]
+            if cover and cover.get("url"):
+                streams.append(CoverStream(urls=[cover["url"]]))
             return ParserMediaInfo(
-                url=best["url"],
+                source_key=source_key_from_url(best["url"]),
                 type=MediaType.VIDEO,
-                cover=cover.get("url") if cover else None,
                 duration=int(duration_s * 1000) if duration_s else None,
                 width=best.get("width"),
                 height=best.get("height"),
+                streams=streams,
             )
 
         if media_type == MEDIA_TYPE_IMAGE:
@@ -121,12 +130,11 @@ class InstagramParser:
             if not best or not best.get("url"):
                 return None
             return ParserMediaInfo(
-                url=best["url"],
+                source_key=source_key_from_url(best["url"]),
                 type=MediaType.IMAGE,
-                cover=None,
-                duration=None,
                 width=best.get("width"),
                 height=best.get("height"),
+                streams=[ImageStream(urls=[best["url"]], width=best.get("width"), height=best.get("height"))],
             )
 
         self.context.logger.debug(f"{DOMAIN}: unknown private API media_type={media_type}, skipping")
